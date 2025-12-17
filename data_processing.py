@@ -5,6 +5,8 @@ from bciflow.modules.fe.logpower import logpower
 from bciflow.modules.fs.mibif import MIBIF
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as lda
 from bciflow.modules.core.kfold import kfold
+import pandas as pd
+from bciflow.modules.analysis.metric_functions import accuracy
 
 dataset = cbcic(subject=1, path='data/cbcic/')
 
@@ -29,4 +31,9 @@ results = kfold(
     pos_folding=pos_folding
 )
 
-print(results)
+df = pd.DataFrame(results)
+acc = accuracy(df)
+
+print(df)
+
+print(f"Accuracy: {acc:.4f}")
