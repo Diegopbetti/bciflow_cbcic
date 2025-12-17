@@ -4,6 +4,7 @@ from bciflow.modules.sf.csp import csp
 from bciflow.modules.fe.logpower import logpower
 from bciflow.modules.fs.mibif import MIBIF
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as lda
+from bciflow.modules.core.kfold import kfold
 
 dataset = cbcic(subject=1, path='data/cbcic/')
 
@@ -20,3 +21,12 @@ pos_folding = {
     'fs': (fs, {}),
     'clf': (clf, {})
 }
+
+results = kfold(
+    target=dataset,
+    start_window=dataset['events']['cue'][0] + 0.5,
+    pre_folding=pre_folding,
+    pos_folding=pos_folding
+)
+
+print(results)
