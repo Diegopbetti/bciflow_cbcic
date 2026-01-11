@@ -22,19 +22,17 @@ X_combined = np.concatenate((rawdata_train, rawdata_eval), axis=0)
 # === EEG data shaped as (trials, bands, channels, time) ===
 X = np.expand_dims(X_combined, axis=1)
 
-# y_train (80 trials):
-y_train_part = []
-y_train_part.extend([0] * 10) 
-y_train_part.extend([1] * 20) 
-y_train_part.extend([0] * 10) 
-y_train_part.extend([1] * 20) 
-y_train_part.extend([0] * 20) 
-y_train = np.array(y_train_part, dtype=int)
+# Lê os rótulos diretamente do arquivo .mat de treinamento.
+labels_train_raw_from_mat = mat_data_train['Labels'].flatten()
 
-# y_eval (40 trials):
+# Aplica o mapeamento do .mat (1=right, 2=left) para a convenção desejada (0=left, 1=right)
+y_train = np.array([0 if label_val == 2 else 1 for label_val in labels_train_raw_from_mat], dtype=int)
+
+# parte de avaliação (40 trials):
+# O arquivo .mat de avaliação NÃO possui rótulos.
 y_eval_part = []
-y_eval_part.extend([1] * 20) 
-y_eval_part.extend([0] * 20) 
+y_eval_part.extend([1] * 20)
+y_eval_part.extend([0] * 20)
 y_eval = np.array(y_eval_part, dtype=int)
 
 # === Label vector (one integer per trial) ===
