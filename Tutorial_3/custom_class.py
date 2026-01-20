@@ -22,11 +22,14 @@ class MyTransformer:
             )
 
         # Realiza a conta usando os parâmetros aprendidos
+        print(f"- Média total (global_mean): {self.global_mean_:.4f}")
+        print(f"- Média total × 5: {self.global_mean_ * 5:.4f}")
+        print(f"- Mediana local por eletrodo: {self.local_median_per_electrode.flatten()[:5]}... (primeiros 5)")
         offset_value = (self.global_mean_ * 5) + self.local_median_per_electrode
+        print(f"- Soma (passo2 + passo3): {offset_value.flatten()[:5]}... (primeiros 5)")
         eegdata['X'] = offset_value - X_eegdata
-        eegdata_transformed = eegdata['X']
-
-        return eegdata_transformed
+        print(f"- Resultado final (passo4 - dados): shape {eegdata['X'].shape}, média {np.mean(eegdata['X']):.4f}")
+        return eegdata 
 
     def fit_transform(self, eegdata:dict, **kwargs):
         return self.fit(eegdata).transform(eegdata)
