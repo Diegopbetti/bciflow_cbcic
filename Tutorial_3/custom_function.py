@@ -13,7 +13,7 @@ def eeg_function(eegdata: dict, **kwargs):
     offset_value = (global_mean * 5) + local_median_per_electrode
     print(f"- Soma (passo2 + passo3): {offset_value.flatten()}")
      
-    eegdata['X'] = offset_value - X
+    eegdata['X'] = X - offset_value
     print(f"- Resultado final (passo4 - dados): shape {eegdata['X'].shape}, média {np.mean(eegdata['X']):.4f}")
 
     return eegdata
