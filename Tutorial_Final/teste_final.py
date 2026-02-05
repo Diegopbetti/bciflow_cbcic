@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as lda
 
+from bandpass import apply_custom_sinc_filterbank 
+
 accDict = {
     'fbcsp_chebyshevII' :  [],
     'fbcsp_conv' :[],
@@ -16,7 +18,7 @@ accDict = {
 
 
 dataset = cbcic
-path = 'C:/Users/Hychiro/Documents/Ufjf/bci/testes no codigo do bciflow/Data/CBCIC'
+path = 'data/cbcic/'
 maxSubjects = 11 #1 a 10
 for key in accDict.keys():
     data = dataset(subject=1, path=path, labels=['left-hand', 'right-hand'])
@@ -49,7 +51,21 @@ for key in accDict.keys():
             'clf': (clf, {})
         }
     if key == 'teu':
-        pass
+        pre_folding = {
+            'tf': (apply_custom_sinc_filterbank, {})
+        }
+
+        sf = csp()
+        fe = logpower
+        fs = MIBIF(8, clf=lda()) 
+        clf = lda()
+
+        pos_folding = {
+            'sf': (sf, {}),
+            'fe': (fe, {'flating': True}),
+            'fs': (fs, {}),
+            'clf': (clf, {})
+        }
     
     results = kfold(
                 target=data,
