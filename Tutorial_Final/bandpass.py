@@ -1,109 +1,140 @@
 import numpy as np
 from scipy import signal 
 
-def apply_custom_sinc_filterbank(eegdata: dict,
-                                  sfreq: float,
-                                  low_cut_bands = [4, 8, 12, 16, 20, 24, 28, 32, 36],
-                                  high_cut_bands = [8, 12, 16, 20, 24, 28, 32, 36, 40]): 
-    
-    # Extrai os dados de EEG e os rótulos do dicionário de entrada para o trial
-    X = eegdata['X'].copy() 
+def apply_custom_sinc_filterbank(
+    eegdata: dict,
+    low_cut_bands=[4, 8, 12, 16, 20, 24, 28, 32, 36],
+    high_cut_bands=[8, 12, 16, 20, 24, 28, 32, 36, 40],
+):
+    sfreq = eegdata['sfreq']
+    X = eegdata['X']        # (n_trials, 1, n_channels, n_samples)
     labels = eegdata['y']
 
-    # remove todas as dimensões de tamanho 1
-    eeg_array_to_filter = np.squeeze(X)
+    n_trials = X.shape[0]
+    n_channels = X.shape[2]
+    n_samples = X.shape[3]
 
-    # Heurística para transpor se os canais estiverem na segunda dimensão (e.g., amostras x canais)
-    if eeg_array_to_filter.shape[0] > eeg_array_to_filter.shape[1] and eeg_array_to_filter.shape[1] < 100:
-        eeg_array_to_filter = eeg_array_to_filter.T 
+    all_trials_filtered = []
 
-    n_channels, n_samples = eeg_array_to_filter.shape
-    list_filtered_bands = [] 
+    print(f"\nTotal de trials: {n_trials}")
 
-    print(f"\n--- Dados ANTES da Filtragem (Trial {labels}) ---")
-    print(f"  Formato dos dados originais (canais, amostras): {eeg_array_to_filter.shape}")
-    if n_channels > 0 and n_samples > 0:
-        print(f" 5 amostras do Canal 0: {eeg_array_to_filter[0, :5]}")
-    else:
-        print("  Dados originais vazios para amostrar.")
+    for t in range(n_trials):
 
+        # =============================
+        # DADOS ANTES DA FILTRAGEM
+        # =============================
+        eeg_trial = X[t, 0, :, :]  # (canais, amostras)
 
-    for i, (f_low_hz, f_high_hz) in enumerate(zip(low_cut_bands, high_cut_bands)):
-        # --- CÁLCULO DINÂMICO DA LARGURA DE TRANSIÇÃO E ORDEM DO FILTRO ---
-        band_transition_width_hz = (f_high_hz - f_low_hz) / 2
+        print(f"\n--- Dados ANTES da Filtragem (Trial {t}) ---")
+        print(f"  Formato dos dados originais (canais, amostras): {eeg_trial.shape}")
 
-        if band_transition_width_hz <= 0:
-            raise ValueError(f"A largura de banda de transição calculada para a banda {f_low_hz}-{f_high_hz}Hz é zero ou negativa ({band_transition_width_hz} Hz). "
-                             "Isso pode ocorrer se f_high_hz <= f_low_hz ou se o intervalo for muito estreito para a regra definida.")
+        if n_channels > 0 and n_samples > 0:
+            print(f"  5 amostras do Canal 0: {eeg_trial[0, :5]}")
+        else:
+            print("  Dados originais vazios para amostrar.")
 
-        normalized_transition_width = band_transition_width_hz / (sfreq / 2)
+        list_filtered_bands = []
 
-        N = int(np.ceil(4 / normalized_transition_width))
-        if not N % 2: N += 1 
-        # --- FIM CÁLCULO DINÂMICO ---
+        # =============================
+        # FILTRAGEM POR BANDA
+        # =============================
+        for i, (f_low_hz, f_high_hz) in enumerate(zip(low_cut_bands, high_cut_bands)):
 
-        # Normalizar as frequências de corte pela frequência de amostragem
-        fL_norm = f_low_hz / sfreq
-        fH_norm = f_high_hz / sfreq
-        
-        n_coeffs = np.arange(N)
+            band_transition_width_hz = (f_high_hz - f_low_hz) / 2
 
-        # Compute a low-pass filter with cutoff frequency fH.
-        hlpf = np.sinc(2 * fH_norm * (n_coeffs - (N - 1) / 2))
-        hlpf *= np.blackman(N) 
-        hlpf = hlpf / np.sum(hlpf)
+            if band_transition_width_hz <= 0:
+                raise ValueError(
+                    f"Largura de transição inválida na banda "
+                    f"{f_low_hz}-{f_high_hz} Hz"
+                )
 
-        # Compute a high-pass filter with cutoff frequency fL.
-        hhpf = np.sinc(2 * fL_norm * (n_coeffs - (N - 1) / 2))
-        hhpf *= np.blackman(N) 
-        hhpf = hhpf / np.sum(hhpf) 
-        hhpf = -hhpf 
-        hhpf[(N - 1) // 2] += 1
+            normalized_transition_width = band_transition_width_hz / (sfreq / 2)
 
-        # Convolve both filters.
-        h_bandpass = signal.convolve(hlpf, hhpf, mode='full')
+            N = int(np.ceil(4 / normalized_transition_width))
+            if N % 2 == 0:
+                N += 1
 
-        # Aplica o filtro passa-banda a cada canal dos dados de EEG.
-        filtered_eeg_band = np.zeros_like(eeg_array_to_filter, dtype=eeg_array_to_filter.dtype)
-        for ch in range(n_channels):
-            filtered_eeg_band[ch, :] = signal.convolve(eeg_array_to_filter[ch, :], h_bandpass, mode='same')
+            fL_norm = f_low_hz / sfreq
+            fH_norm = f_high_hz / sfreq
 
-        list_filtered_bands.append(filtered_eeg_band)
+            n = np.arange(N)
 
-    # Empilha as bandas em um único array (num_bands, n_channels, n_samples)
-    final_filtered_X_for_trial = np.array(list_filtered_bands)
+            # Low-pass
+            hlpf = np.sinc(2 * fH_norm * (n - (N - 1) / 2))
+            hlpf *= np.blackman(N)
+            hlpf /= np.sum(hlpf)
 
-    # --- Resumo DEPOIS da filtragem ---
-    print(f"\n--- Dados DEPOIS da Filtragem (Trial {labels}) ---")
-    print(f"  Formato dos dados filtrados (bandas, canais, amostras): {final_filtered_X_for_trial.shape}")
-    if final_filtered_X_for_trial.shape[0] > 0 and n_channels > 0 and n_samples > 0:
-        print(f" 5 amostras do Canal 0 (primeira banda): {final_filtered_X_for_trial[0, 0, :5]}")
-    else:
-        print("  Dados filtrados vazios para amostrar.")
+            # High-pass
+            hhpf = np.sinc(2 * fL_norm * (n - (N - 1) / 2))
+            hhpf *= np.blackman(N)
+            hhpf /= np.sum(hhpf)
+            hhpf = -hhpf
+            hhpf[(N - 1) // 2] += 1
 
-    eegdata['X'] = final_filtered_X_for_trial
-    
+            # Band-pass
+            h_bandpass = signal.convolve(hlpf, hhpf, mode='full')
+
+            filtered_band = np.zeros_like(eeg_trial)
+
+            for ch in range(n_channels):
+                filtered_band[ch, :] = signal.convolve(
+                    eeg_trial[ch, :],
+                    h_bandpass,
+                    mode='same'
+                )
+
+            list_filtered_bands.append(filtered_band)
+
+        # (bandas, canais, amostras)
+        trial_filtered = np.array(list_filtered_bands)
+
+        # =============================
+        # DADOS DEPOIS DA FILTRAGEM
+        # =============================
+        print(f"\n--- Dados DEPOIS da Filtragem (Trial {t}) ---")
+        print(
+            f"  Formato dos dados filtrados (bandas, canais, amostras): "
+            f"{trial_filtered.shape}"
+        )
+
+        if trial_filtered.shape[0] > 0:
+            print(
+                f"  5 amostras do Canal 0 (primeira banda): "
+                f"{trial_filtered[0, 0, :5]}"
+            )
+        else:
+            print("  Dados filtrados vazios para amostrar.")
+
+        all_trials_filtered.append(trial_filtered)
+
+    # (n_trials, n_bands, n_channels, n_samples)
+    eegdata['X'] = np.array(all_trials_filtered)
+
+    print(f"\nFormato FINAL do array X: {eegdata['X'].shape}")
     return eegdata
 
-# --- BLOCO DE TESTE ---
-if __name__ == "__main__": 
+
+# ==================================
+# BLOCO DE TESTE
+# ==================================
+if __name__ == "__main__":
+    num_trials = 6
     num_electrodes = 12
     num_time_points = 4096
-    mock_X = (np.random.rand(1, 1, num_electrodes, num_time_points) * 240) - 120 # Dados EEG simulados
-    mock_y = 0
-    mock_sfreq = 512.0 
+
+    mock_X = (np.random.rand(
+        num_trials, 1, num_electrodes, num_time_points
+    ) * 240) - 120
+
+    mock_y = np.arange(num_trials)
+    mock_sfreq = 512.0
 
     mock_eegdata = {
         'X': mock_X.copy(),
         'y': mock_y
     }
-    
-    test_low_cut_bands = [4, 8, 12, 16, 20, 24, 28, 32, 36]
-    test_high_cut_bands = [8, 12, 16, 20, 24, 28, 32, 36, 40]
 
     processed_eegdata = apply_custom_sinc_filterbank(
         mock_eegdata,
-        sfreq=mock_sfreq,
-        low_cut_bands=test_low_cut_bands, 
-        high_cut_bands=test_high_cut_bands 
+        sfreq=mock_sfreq
     )
